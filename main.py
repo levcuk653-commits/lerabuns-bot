@@ -12,9 +12,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import LabeledPrice, Message
 
 # ================= CONFIGURATION =================
-TELEGRAM_TOKEN = os.getenv("BOT_TOKEN", "8826208316:AAGf9PypD89H5jSX7W-q7_bpb6HZ2dRL2q4")
+TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-
 AI_MODEL = "deepseek/deepseek-chat"
 
 SYSTEM_PROMPT = (
@@ -33,26 +32,13 @@ FREE_LIMIT = 7
 SUBSCRIPTION_STARS = 990
 user_data = {}
 
+# Надійні прямі посилання на картинки для гарантованої відправки без помилок Telegram API
 HOT_PHOTOS = [
-    "https://t.me/lerkabun/3",
-    "https://t.me/lerkabun/4",
-    "https://t.me/lerkabun/5",
-    "https://t.me/lerkabun/6",
-    "https://t.me/lerkabun/8?single",
-    "https://t.me/lerkabun/10",
-    "https://t.me/lerkabun/16",
-    "https://t.me/lerkabun/18",
-    "https://t.me/lerkabun/20",
-    "https://t.me/lerkabun/22",
-    "https://t.me/lerkabun/25",
-    "https://t.me/lerkabun/26",
-    "https://t.me/lerkabun/27",
-    "https://t.me/lerkabun/28",
-    "https://t.me/lerkabun/29",
-    "https://t.me/lerkabun/30",
-    "https://t.me/lerkabun/31",
-    "https://t.me/lerkabun/32",
-    "https://t.me/lerkabun/33"
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800",
+    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800",
+    "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800"
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -103,7 +89,10 @@ async def cmd_start(message: Message):
         " повідомлень</b> (free messages), щоб показати мені, на що ти здатен."
         " Не розчаруй мене 😉"
     )
-    await message.answer_photo(photo=intro_photo, caption=welcome_text)
+    try:
+        await message.answer_photo(photo=intro_photo, caption=welcome_text)
+    except Exception:
+        await message.answer(welcome_text)
 
 
 @dp.message(F.text)
@@ -167,7 +156,10 @@ async def handle_message(message: Message):
     if is_explicit_request:
         photo_url = random.choice(HOT_PHOTOS)
         await bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
-        await message.answer_photo(photo=photo_url, caption=ai_reply + footer)
+        try:
+            await message.answer_photo(photo=photo_url, caption=ai_reply + footer)
+        except Exception:
+            await message.answer(ai_reply + footer)
     else:
         await message.answer(ai_reply + footer)
 
@@ -215,6 +207,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
