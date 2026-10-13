@@ -32,13 +32,26 @@ FREE_LIMIT = 7
 SUBSCRIPTION_STARS = 990
 user_data = {}
 
-# Надійні прямі посилання на картинки для гарантованої відправки без помилок Telegram API
 HOT_PHOTOS = [
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
-    "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800",
-    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800",
-    "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=800"
+    "https://t.me/lerkabun/3",
+    "https://t.me/lerkabun/4",
+    "https://t.me/lerkabun/5",
+    "https://t.me/lerkabun/6",
+    "https://t.me/lerkabun/8?single",
+    "https://t.me/lerkabun/10",
+    "https://t.me/lerkabun/16",
+    "https://t.me/lerkabun/18",
+    "https://t.me/lerkabun/20",
+    "https://t.me/lerkabun/22",
+    "https://t.me/lerkabun/25",
+    "https://t.me/lerkabun/26",
+    "https://t.me/lerkabun/27",
+    "https://t.me/lerkabun/28",
+    "https://t.me/lerkabun/29",
+    "https://t.me/lerkabun/30",
+    "https://t.me/lerkabun/31",
+    "https://t.me/lerkabun/32",
+    "https://t.me/lerkabun/33"
 ]
 
 logging.basicConfig(level=logging.INFO)
@@ -82,17 +95,19 @@ async def cmd_start(message: Message):
     if user_id not in user_data:
         user_data[user_id] = {"count": 0, "is_paid": False, "history": []}
     
-    intro_photo = random.choice(HOT_PHOTOS)
     welcome_text = (
         f"Мхм, привіт / hello / привет, {html.quote(message.from_user.first_name)}..."
         f" 🔥 Я чекала на тебе. У тебе є <b>{FREE_LIMIT} безкоштовних"
         " повідомлень</b> (free messages), щоб показати мені, на що ти здатен."
         " Не розчаруй мене 😉"
     )
+    
+    # Безпечно відправляємо текст (і пробуємо прикріпити посилання на фото)
+    intro_photo = random.choice(HOT_PHOTOS)
     try:
         await message.answer_photo(photo=intro_photo, caption=welcome_text)
     except Exception:
-        await message.answer(welcome_text)
+        await message.answer(welcome_text + f"\n\n🔗 Мені сподобалось це: {intro_photo}")
 
 
 @dp.message(F.text)
@@ -153,15 +168,18 @@ async def handle_message(message: Message):
         trigger in text_lower for trigger in photo_triggers
     )
 
+    full_response_text = ai_reply + footer
+
     if is_explicit_request:
         photo_url = random.choice(HOT_PHOTOS)
         await bot.send_chat_action(chat_id=message.chat.id, action="upload_photo")
         try:
-            await message.answer_photo(photo=photo_url, caption=ai_reply + footer)
+            await message.answer_photo(photo=photo_url, caption=full_response_text)
         except Exception:
-            await message.answer(ai_reply + footer)
+            # Якщо Telegram не зміг завантажити картинку за посиланням каналу, відправляємо текстом і додаємо лінк
+            await message.answer(full_response_text + f"\n\n📸 {photo_url}")
     else:
-        await message.answer(ai_reply + footer)
+        await message.answer(full_response_text)
 
 
 @dp.pre_checkout_query()
@@ -207,6 +225,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
