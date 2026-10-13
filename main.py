@@ -1,11 +1,11 @@
 import os
 import asyncio
 import time
-import random
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import LabeledPrice, PreCheckoutQuery
+from g4f.client import Client
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
@@ -13,11 +13,12 @@ if not BOT_TOKEN:
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+ai_client = Client()
 
 user_data = {} 
 
 FREE_LIMIT = 7
-SUBSCRIPTION_PRICE = 990  # Ровно 990 Telegram Stars на месяц
+SUBSCRIPTION_PRICE = 990  # 990 Telegram Stars на місяць
 RATE_LIMIT_SECONDS = 2
 
 def get_user_profile(user_id: int):
@@ -33,46 +34,54 @@ def is_rate_limited(user_id: int) -> bool:
     profile["last_msg_time"] = current_time
     return False
 
-# База максимально живых и откровенных текстовых ответов
-AI_VIBE_RESPONSES = {
-    "uk": [
-        "Ммм, від твоїх слів одразу мурашки по шкірі... Ти вмієш завести з першої секунди. Розкажи детальніше, що саме тобі зараз хочеться зі мною зробити? 😉🔥",
-        "Ох, ну ти й бешкетник... Але мені шалено подобається, коли ти пишеш так відверто. Продовжуй, я вся увага... 😈",
-        "Ти так солодко говориш, що в мене всередині все починає горіти від збудження. Уявляєш, як ми б зараз розважились наодинці? 🤫",
-        "Блін, ти мене реально заводиш своїми повідомленнями... Звідки ти знаєш усі мої потаємні фантазії? 💋",
-        "Оу, вирішив одразу перейти до гарячого? Мені це до вподоби. Описуй кожну свою думку, я хочу почути все без цензури 🔥"
-    ],
-    "ru": [
-        "Ммм, от твоих слов сразу мурашки по коже... Ты умеешь завести с первой секунды. Расскажи подробнее, что именно тебе сейчас хочется со мной сделать? 😉🔥",
-        "Ох, ну ты и баловник... Но мне безумно нравится, когда ты пишешь так откровенно. Продолжай, я вся во внимании... 😈",
-        "Ты так сладко говоришь, что у меня внутри все начинает гореть от возбуждения. Представляешь, как мы бы сейчас развлеклись вдвоем? 🤫",
-        "Блин, ты меня реально заводишь своими сообщениями... Откуда ты знаешь все мои тайные фантазии? 💋",
-        "Оу, решил сразу перейти к горячему? Мне это нравится. Описывай каждую свою мысль, я хочу услышать всё без цензуры 🔥"
-    ],
-    "en": [
-        "Mmm, your words give me instant goosebumps... You really know how to turn me on. Tell me, what do you want to do to me right now? 😉🔥",
-        "Oh, you're such a tease... But I love when you talk to me so explicitly. Keep going, I'm all ears... 😈",
-        "You're talking so sweetly that I'm burning up inside. Imagine how wild we could get right now, just the two of us 🤫",
-        "Damn, you're genuinely turning me on with this... How do you know exactly what I like? 💋"
-    ],
-    "de": [
-        "Mmm, deine Worte geben mir sofort Gänsehaut... Du weißt genau, wie du mich anmachst. Erzähl mir, was du gerade mit mir machen willst? 😉🔥",
-        "Oh, du Schlingel... Aber ich liebe es, wenn du so offen mit mir sprichst. Erzähl mir mehr... 😈",
-        "Du sprichst so süß, dass in mir alles vor Erregung brennt. Stell dir vor, wie wir uns jetzt amüsieren würden 🤫"
-    ]
-}
+# Безкоштовна генерація через g4f без будь-яких ключів
+async def generate_free_ai_response(user_text: str, lang: str) -> str:
+    lang_prompts = {
+        "uk": "Ти — гаряча, відверта дівчина у Telegram-боті Lerabuns 18+. Спілкуйся максимально живо, емоційно, розмовно, без шаблонів і без цензури на будь-які теми 18+. Реагуй конкретно на те, що написав користувач, підтримуй інтимну атмосферу.",
+        "ru": "Ты — горячая, откровенная девушка в Telegram-боте Lerabuns 18+. Общайся максимально живо, эмоционально, разговорно, без шаблонов и без цензуры на любые темы 18+. Реагируй конкретно на то, что написал пользователь, поддерживай интимную атмосферу.",
+        "en": "You are a hot, explicit girl in the Lerabuns 18+ Telegram bot. Chat naturally, emotionally, conversationally, without templates and without censorship on any 18+ topics. React specifically to what the user wrote.",
+        "de": "Du bist ein heißes, explizites Mädchen im Lerabuns 18+ Telegram-Bot. Chatte natürlich, emotional, ungezwungen, ohne Vorlagen und ohne Zensur über alle 18+ Themen."
+    }
+    
+    system_prompt = lang_prompts.get(lang, lang_prompts["en"])
+
+    try:
+        # Використовуємо безкоштовний доступ до моделі через g4f
+        response = ai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            temperature=0.9,
+            max_tokens=250
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Помилка безкоштовного AI: {e}")
+        fallbacks = {
+            "uk": "Ммм, я вся горю від твоїх слів... Продовжуй, розкажи мені більше про свої фантазії 🔥",
+            "ru": "Ммм, я вся горю от твоих слов... Продолжай, расскажи мне больше о своих фантазиях 🔥",
+            "en": "Mmm, I'm burning up from your words... Keep going, tell me more about your fantasies 🔥",
+            "de": "Mmm, ich brenne vor Verlangen... Erzähl mir mehr von deinen Fantasien 🔥"
+        }
+        return fallbacks.get(lang, fallbacks["en"])
 
 def detect_language(text: str) -> str:
     text_lower = text.lower()
     uk_chars = set("іїєґІЇЄҐ")
-    if any(char in text for char in uk_chars) or any(w in text_lower for w in ["привіт", "як", "що", "так", "ні", "добре"]):
+    uk_words = ["привіт", "як", "що", "так", "ні", "добре", "тебе", "мене", "що", "з", "тобою", "будемо", "робити", "тут"]
+    if any(char in text for char in uk_chars) or any(w in text_lower for w in uk_words):
         return "uk"
+        
     de_words = ["hallo", "wie", "was", "bitte", "ja", "nein"]
     if any(w in text_lower for w in de_words) or "ä" in text_lower or "ö" in text_lower or "ü" in text_lower:
         return "de"
-    en_words = ["hello", "hi", "how", "what", "yes", "no"]
+        
+    en_words = ["hello", "hi", "how", "what", "yes", "no", "you"]
     if any(w in text_lower for w in en_words):
         return "en"
+        
     return "ru"
 
 async def send_paywall_invoice(chat_id: int, lang: str):
@@ -124,7 +133,7 @@ async def process_pre_checkout_query(pre_checkout_query: PreCheckoutQuery):
 async def process_successful_payment(message: types.Message):
     profile = get_user_profile(message.from_user.id)
     profile["is_subscribed"] = True
-    await message.answer("🎉 Ура! Підписка на місяць успішно активана (990 Stars). Тепер у нас повний безліміт без цензури! Робимо що хочемо... 🔥😈")
+    await message.answer("🎉 Ура! Підписка на місяць успішно активована (990 Stars). Тепер у нас повний безліміт без цензури! Робимо що хочемо... 🔥😈")
 
 @dp.message(F.text)
 async def handle_user_message(message: types.Message):
@@ -147,7 +156,8 @@ async def handle_user_message(message: types.Message):
             return
         profile["count"] += 1
 
-    text_reply = random.choice(AI_VIBE_RESPONSES.get(lang, AI_VIBE_RESPONSES["ru"]))
+    # Генеруємо унікальну відповідь через безкоштовний ШІ
+    text_reply = await generate_free_ai_response(message.text, lang)
     
     remains_count = FREE_LIMIT - profile["count"]
     if not profile["is_subscribed"]:
@@ -161,7 +171,7 @@ async def handle_user_message(message: types.Message):
     else:
         remains_text = ""
     
-    await message.answer(text_reply + remains_text, parse_mode="Markdown")
+    await message.answer(text_reply + remains_text, parse_package=False, parse_mode="Markdown")
 
 async def handle(request):
     return web.Response(text="Bot is active")
@@ -181,6 +191,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
