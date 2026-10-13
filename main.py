@@ -102,7 +102,6 @@ async def cmd_start(message: Message):
         " Не розчаруй мене 😉"
     )
     
-    # Безпечно відправляємо текст (і пробуємо прикріпити посилання на фото)
     intro_photo = random.choice(HOT_PHOTOS)
     try:
         await message.answer_photo(photo=intro_photo, caption=welcome_text)
@@ -176,7 +175,6 @@ async def handle_message(message: Message):
         try:
             await message.answer_photo(photo=photo_url, caption=full_response_text)
         except Exception:
-            # Якщо Telegram не зміг завантажити картинку за посиланням каналу, відправляємо текстом і додаємо лінк
             await message.answer(full_response_text + f"\n\n📸 {photo_url}")
     else:
         await message.answer(full_response_text)
@@ -225,6 +223,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
