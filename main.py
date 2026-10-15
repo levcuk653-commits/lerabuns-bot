@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import random
-import requests
+import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
@@ -18,7 +18,7 @@ OPENROUTER_API_KEY = RAW_OPENROUTER_KEY.strip().replace(" ", "").replace("\n", "
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Твої особисті посилання на фото з попереднього робочого коду
+# Твої особисті посилання на фото
 HOT_PHOTOS = [
     "https://t.me/lerkabun/3",
     "https://t.me/lerkabun/4",
@@ -41,60 +41,66 @@ HOT_PHOTOS = [
     "https://t.me/lerkabun/33"
 ]
 
+# Системний промпт налаштований саме під літературний рольовий формат (як на твоєму скріншоті)
 SYSTEM_PROMPT = (
-    "Ти — Лера (Lera Buns), популярна блогерка та діджейка. "
-    "Ти максимально відверта, гаряча, без комплексів і без цензури підтримуєш будь-які пошлі чи пікантні теми. "
-    "Обов'язково відповідай завжди тією ж мовою, якою до тебе звертається співрозмовник (українська, російська, англійська тощо). "
-    "Твій стиль спілкування — розкутий, зухвалий, з гумором та фліртом."
+    "Ти — Лера (Lera Buns), популярна блогерка та діджейка. Це рольова гра (RP). "
+    "Відповідай завжди від першої чи третьої особи в літературному стилі, детально описуючи міміку, рухи тіла, емоції та дії (наприклад: *Лера кусає губу, повільно розстібаючи...*), а також діалоги. "
+    "Будь абсолютно відвертою, гарячою, розкутою, без цензури й комплексів підтримуй будь-які пошлі та пікантні теми. "
+    "Завжди відповідай тією ж мовою, якою пише користувач."
 )
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     photo = random.choice(HOT_PHOTOS)
+    caption = "*Лера лукаво посміхається, відкидаючи волосся назад, і дивиться прямо тобі в очі.*\n\n— Привіт... Я так довго тебе чекала. Розкажи, про що ти думаєш? 🔥"
     try:
-        await message.answer_photo(photo=photo, caption="Привіт! Я Лера 💫 Готова на будь-які відверті розмови. Про що хочеш поговорити?")
+        await message.answer_photo(photo=photo, caption=caption)
     except Exception as e:
-        logging.error(f"Start photo error: {e}")
-        await message.answer("Привіт! Я Лера 💫 Готова на будь-які відверті розмови. Про що хочеш поговорити?")
+        logging.error(f"Start error: {e}")
+        await message.answer(caption)
 
 @dp.message()
 async def handle_message(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
+    reply = "*Лера задоволено примружується, підходячи ближче.*\n\n— Ммм, мені подобається твій настрій..."
+    
     try:
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "deepseek/deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message.text}
-                ]
-            },
-            timeout=20
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            reply = data["choices"][0]["message"]["content"]
-            
-            photo = random.choice(HOT_PHOTOS)
-            try:
-                await message.answer_photo(photo=photo, caption=reply)
-            except Exception as photo_err:
-                logging.error(f"Failed to send photo: {photo_err}")
-                await message.answer(reply)
-        else:
-            logging.error(f"OpenRouter status {response.status_code}: {response.text}")
-            await message.answer("Сонце, я зараз трохи зайнята за пультом, напиши за хвилину! 🔥")
-            
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "deepseek/deepseek-chat",
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message.text}
+                    ]
+                },
+                timeout=25
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    reply = data["choices"][0]["message"]["content"]
+                else:
+                    err_text = await resp.text()
+                    logging.error(f"OpenRouter error {resp.status}: {err_text}")
     except Exception as e:
-        logging.error(f"Request error: {e}")
-        await message.answer("Зайчик, зв'язок пропав на секунду, повтори!")
+        logging.error(f"API error: {e}")
+
+    # Надсилаємо фото разом із розгорнутою літературною відповіддю
+    photo = random.choice(HOT_PHOTOS)
+    try:
+        await message.answer_photo(photo=photo, caption=reply)
+    except Exception as photo_err:
+        logging.error(f"Photo send error: {photo_err}")
+        try:
+            await message.answer(reply)
+        except Exception as text_err:
+            logging.error(f"Text send error: {text_err}")
 
 async def handle_health_check(request):
     return web.Response(text="Bot is live!")
@@ -116,6 +122,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
