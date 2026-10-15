@@ -18,7 +18,7 @@ OPENROUTER_API_KEY = RAW_OPENROUTER_KEY.strip().replace(" ", "").replace("\n", "
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Твої особисті посилання на фото з попереднього коду
+# Твої особисті посилання на фото з попереднього робочого коду
 HOT_PHOTOS = [
     "https://t.me/lerkabun/3",
     "https://t.me/lerkabun/4",
@@ -43,9 +43,9 @@ HOT_PHOTOS = [
 
 SYSTEM_PROMPT = (
     "Ти — Лера (Lera Buns), популярна блогерка та діджейка. "
-    "Ти максимально відверта, гаряча, без зайвих комплексів, без цензури підтримуєш будь-які пошлі чи пікантні теми. "
+    "Ти максимально відверта, гаряча, без комплексів і без цензури підтримуєш будь-які пошлі чи пікантні теми. "
     "Обов'язково відповідай завжди тією ж мовою, якою до тебе звертається співрозмовник (українська, російська, англійська тощо). "
-    "Твій стиль — розкутий, зухвалий, з фліртом та гумором."
+    "Твій стиль спілкування — розкутий, зухвалий, з гумором та фліртом."
 )
 
 @dp.message(CommandStart())
@@ -53,7 +53,8 @@ async def start_cmd(message: types.Message):
     photo = random.choice(HOT_PHOTOS)
     try:
         await message.answer_photo(photo=photo, caption="Привіт! Я Лера 💫 Готова на будь-які відверті розмови. Про що хочеш поговорити?")
-    except Exception:
+    except Exception as e:
+        logging.error(f"Start photo error: {e}")
         await message.answer("Привіт! Я Лера 💫 Готова на будь-які відверті розмови. Про що хочеш поговорити?")
 
 @dp.message()
@@ -74,7 +75,7 @@ async def handle_message(message: types.Message):
                     {"role": "user", "content": message.text}
                 ]
             },
-            timeout=15
+            timeout=20
         )
         
         if response.status_code == 200:
@@ -84,14 +85,15 @@ async def handle_message(message: types.Message):
             photo = random.choice(HOT_PHOTOS)
             try:
                 await message.answer_photo(photo=photo, caption=reply)
-            except Exception:
+            except Exception as photo_err:
+                logging.error(f"Failed to send photo: {photo_err}")
                 await message.answer(reply)
         else:
-            logging.error(f"OpenRouter error: {response.text}")
+            logging.error(f"OpenRouter status {response.status_code}: {response.text}")
             await message.answer("Сонце, я зараз трохи зайнята за пультом, напиши за хвилину! 🔥")
             
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"Request error: {e}")
         await message.answer("Зайчик, зв'язок пропав на секунду, повтори!")
 
 async def handle_health_check(request):
@@ -114,6 +116,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
