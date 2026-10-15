@@ -6,17 +6,19 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 
-# Налаштування логування
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Отримання токенів із змінних середовища Render
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+# Автоматически очищаем токены от всех случайных пробелов и переносов строк
+RAW_BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = RAW_BOT_TOKEN.strip().replace(" ", "").replace("\n", "").replace("\r", "")
+
+RAW_OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_API_KEY = RAW_OPENROUTER_KEY.strip().replace(" ", "").replace("\n", "").replace("\r", "")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Системний промпт для персонажа Lera Buns
 SYSTEM_PROMPT = "Ти — Лера (Lera Buns), популярна блогерка та діджей. Відповідай дружньо, невимушено, з гумором та українською мовою."
 
 @dp.message(CommandStart())
@@ -55,29 +57,29 @@ async def handle_message(message: types.Message):
         logging.error(f"Error calling OpenRouter: {e}")
         await message.answer("Зараз трохи зайнята, напиши мені ще раз за хвилинку! ✨")
 
-# Простий хендлер для Render, щоб тримати порт відкритим
+# Простой веб-сервер для Render
 async def handle_health_check(request):
-    return web.Response(text="Bot is running!")
+    return web.Response(text="Bot is live!")
 
 async def main():
-    # Запуск вебсервера для Render
     app = web.Application()
     app.router.add_get("/", handle_health_check)
     runner = web.AppRunner(app)
     await runner.setup()
     
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     
-    logging.info(f"Web server started on port {port}")
+    logging.info(f"Web server active on port {port}")
     
-    # Видалення застарілих вебхуків та запуск поллінгу
+    # Очищаем вебхуки и запускаем бота
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
