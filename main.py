@@ -1,15 +1,14 @@
 import os
 import asyncio
 import logging
-import requests
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 
-# Настройка логирования
+# Налаштування логування
 logging.basicConfig(level=logging.INFO)
 
-# Автоматически очищаем токены от всех случайных пробелов и переносов строк
+# Отримання та очищення токенів від зайвих пробілів чи символів
 RAW_BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 BOT_TOKEN = RAW_BOT_TOKEN.strip().replace(" ", "").replace("\n", "").replace("\r", "")
 
@@ -29,39 +28,37 @@ async def start_cmd(message: types.Message):
 async def handle_message(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "deepseek/deepseek-chat",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message.text}
+        ]
+    }
+
     try:
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "deepseek/deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message.text}
-                ]
-            },
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            reply = data["choices"][0]["message"]["content"]
-            await message.answer(reply)
-        else:
-            await message.answer("Ой, щось зв'язок підкачав... Спробуй ще раз трохи пізніше!")
-            
+        async with web.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload, timeout=15) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    reply = data["choices"][0]["message"]["content"]
+                    await message.answer(reply)
+                else:
+                    await message.answer("Ой, щось зв'язок підкачав... Спробуй ще раз трохи пізніше!")
     except Exception as e:
         logging.error(f"Error calling OpenRouter: {e}")
         await message.answer("Зараз трохи зайнята, напиши мені ще раз за хвилинку! ✨")
 
-# Простой веб-сервер для Render
 async def handle_health_check(request):
-    return web.Response(text="Bot is live!")
+    return web.Response(text="OK")
 
 async def main():
+    # Запуск веб-сервера під порт Render, щоб уникнути помилки портів
     app = web.Application()
     app.router.add_get("/", handle_health_check)
     runner = web.AppRunner(app)
@@ -70,10 +67,8 @@ async def main():
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    
-    logging.info(f"Web server active on port {port}")
-    
-    # Очищаем вебхуки и запускаем бота
+    logging.info(f"Server started on port {port}")
+
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
